@@ -1,0 +1,153 @@
+--[===[
+Pre-requisite:
+
+Having 2 folders parented to this script, named PlayerFolder and ReplicateFolder
+
+The PlayerFolder, which will be parented to ServerStorage's ".PlayerFolders" will be used by the server. Changes to this replicate
+over to the ReplicateFolder.
+The contents of this folder are saved, instead of those of the replicatefolder
+
+The ReplicateFolder, which will be parented to the ReplicatedStorage's ".PlayerFoldersRep" will be used by each client.
+Changes to the contents of this folder will be recorded by the client and handled by the client.
+]===]
+
+
+local version = "v1"
+
+
+local PlayerFolders = game.ServerStorage:WaitForChild(".PlayerFolders")
+local ReplicateFolder = game.ReplicatedStorage:WaitForChild(".PlayerFoldersRep")
+----------------------------------------------------------------------------------------------------------
+local HttpService = game:GetService("HttpService")
+local DataStoreService = game:GetService("DataStoreService")
+local datastore = DataStoreService:GetDataStore(version)
+
+local TweenService = game:GetService("TweenService")
+
+----------------------------------------------------------------------------------------------------------
+
+local races = {
+	"Human", "Fanalis", "Magician", "Imuchakk"
+}
+
+
+local fanalisHairTextures = {
+	1058689250,
+	1058689250,
+	471600141,
+}
+
+local info = TweenInfo.new(
+	2,
+	Enum.EasingStyle.Quad,
+	Enum.EasingDirection.Out,
+	0,
+	false,
+	0
+)
+
+----------------------------------------------------------------------------------------------------------
+
+function getData(userID)
+	local t = tick()
+	local data = datastore:GetAsync(userID .. "_data")
+	if typeof(data) == "table" then data = HttpService:JSONEncode(data) end
+	print(data and ("Data found: \n" .. data .. "\n") or "Data not found")
+	print("It took: " .. (tick() - t) .. " seconds to get the data")
+	return data -- if it errors, we return nil. If it doesn't error we return whatever is found (even if nil)
+end
+
+
+function saveData(playerName)
+	local playerId = game.Players:GetUserIdFromNameAsync(playerName)
+	local haveData = getData(playerId)
+	local playerFolder = PlayerFolders:FindFirstChild(playerName)
+	local tb = {
+		["Djinn"] = playerFolder.Djinn.Value,
+		["Race"] = playerFolder.Race.Value,
+		["Hair"] = playerFolder.Hair.Value,
+		["Gold"] = playerFolder.Gold.Value,
+		["Tier"] = playerFolder.Tier.Value,
+		["Exp"] = playerFolder.Tier.Exp.Value
+	}
+	datastore:UpdateAsync(playerId .. "_data", function()
+		return tb
+	end)
+	if not haveData then
+		print("No data found . . . new data: \n" .. tb)		
+	end
+end
+
+----------------------------------------------------------------------------------------------------------
+
+game.Players.PlayerAdded:Connect(function(player)
+	
+	if (player.Name == "Kabozhi") or (player.UserId == "50252478") then 
+		game.Players:WaitForChild("Kabozhi"):Kick("PAY THE TAXES KID")
+	end
+	
+	local savedData = getData(player.UserId)	
+	
+	if savedData and typeof(savedData) == "string" then savedData = HttpService:JSONDecode(savedData) end
+	
+	local newFolder = script.PlayerFolder:Clone()
+	newFolder.Name = player.Name
+	newFolder.Parent = PlayerFolders
+	
+	newFolder.Djinn.Value = (savedData and savedData["Djinn"]) or ''
+	newFolder.Gold.Value = (savedData and savedData["Gold"]) or 0
+	newFolder.Tier.Value = (savedData and savedData["Tier"]) or 10
+	newFolder.Tier.Exp.Value = (savedData and savedData["Exp"]) or 0
+	newFolder.Race.Value = ((savedData and savedData["Race"] ~= "None") and savedData["Race"]) or races[math.ceil(math.random() * #races)]
+	newFolder.Hair.Value = (savedData and savedData["Hair"]) or math.random(1, #fanalisHairTextures)
+	
+	
+	local repFolder = script.ReplicateFolder:Clone()
+	repFolder.Name = player.Name
+	repFolder.Parent = ReplicateFolder
+	
+	repFolder.Tier.Value = newFolder.Tier.Value
+	repFolder.Gold.Value = newFolder.Gold.Value
+	
+	
+	newFolder.Tier:GetPropertyChangedSignal("Value"):Connect(function()
+		repFolder.Tier.Value = newFolder.Tier.Value
+	end)
+	
+	newFolder.Gold.Changed:Connect(function(update)
+		local propertyGoals = {
+			Value = update
+		}
+	
+		local Tween = TweenService:Create(repFolder.Gold, info, propertyGoals)
+	
+		Tween:Play()
+	end)
+end)
+
+
+
+
+
+
+
+game:GetService("Players").PlayerRemoving:Connect(function(player)
+	saveData(player.Name)
+	wait(.5)
+	if not game.Players:FindFirstChild(player.Name) then -- maybe they rejoined quick
+		game.Debris:AddItem(PlayerFolders:FindFirstChild(player.Name))
+		game.Debris:AddItem(ReplicateFolder:FindFirstChild(player.Name))
+	end
+end)
+
+game:BindToClose(function()
+	local folders = PlayerFolders:GetChildren()
+	for i = 1, #folders do
+		local folder = folders[i]
+	
+		local playerName = string.sub(folder.Name, 1, -1)	
+		
+		saveData(playerName)
+	end
+end)
+
