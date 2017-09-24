@@ -1,0 +1,77 @@
+local queue = script.Queue
+
+
+local chil = game.workspace:GetChildren()
+
+
+for i = 1, #chil do
+	if chil[i]:FindFirstChild("TouchPart") then
+		local chestPart = chil[i]:FindFirstChild("TouchPart")
+		local allowTouch = true
+		
+		local chest = chestPart.Parent
+		local amount = chest:FindFirstChild("Amount").Value
+		local respawnTime = chest:FindFirstChild("RespawnTime").Value
+		
+		local top = chest:FindFirstChild("TopLid")
+		local originalCFrame = top.CFrame
+		
+		
+		chest:FindFirstChild("Amount"):Destroy()
+		chest:FindFirstChild("RespawnTime"):Destroy()
+		chest.Name = "Model"
+		for i = 1, #chest:GetChildren() do
+			chest:GetChildren()[i].Name = chest:GetChildren()[i].ClassName
+		end
+		
+		chestPart.Touched:Connect(function(hit)
+			
+			local char = hit.Parent
+			
+			if char:FindFirstChild("Humanoid") and char:FindFirstChild("Humanoid").Health > 0 then
+	       		local player = game.Players:GetPlayerFromCharacter(char)
+	
+				if not (player and allowTouch) then return end
+				
+				allowTouch = false
+			
+				local AmountCash = math.random(-50, 50) + amount
+				
+				-- give the player money
+				game.ReplicatedStorage.Remotes.ChestMoney:Fire(player,AmountCash)
+				
+				-- open the lid
+				
+				for i = 1, 50 do
+					top.CFrame = top.CFrame * CFrame.new(-0.03, 0.04, 0) * CFrame.fromEulerAnglesXYZ(0, 0, 0.04)
+					wait(i/700)
+				end
+			
+				-- give the player money
+	        	
+				-- wait 10 seconds, then hide the chest
+				delay(10, function()
+					chest.Parent = queue
+				end)
+	       	
+				-- wait its respawn amount, then parent it back 
+				wait(math.random()*150 + respawnTime)
+	      chest.Parent = workspace
+				top.CFrame = originalCFrame
+				allowTouch = true
+				
+			end
+			
+		end)
+		
+	end
+end
+
+
+
+function giveMoney(plr,giveamount)
+	local Gold = game.ServerStorage:WaitForChild(".PlayerFolders"):WaitForChild(plr.Name).Gold
+	Gold.Value = Gold.Value + giveamount
+end
+
+game.ReplicatedStorage.Remotes.ChestMoney.Event:Connect(giveMoney)
