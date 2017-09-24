@@ -1,0 +1,89 @@
+
+local Block = {}
+local blockingEvent = game.ReplicatedStorage.Remotes.Blocking
+
+local allowBlocking = true
+
+
+
+function Block.handleReceive(player, enabled)
+	if not player then return end
+	
+	if (not (player and player.Character)) or not (player.Character.Humanoid.Health > 0) then return end
+	
+	local h = player.Character.Humanoid; local effects = h:FindFirstChild("Effects") if not (h and effects) then return end
+	
+	local maxWS = player.Character:FindFirstChild("MaxWalkSpeed")
+	local Blocking = player.Character:FindFirstChild("Blocking")
+	
+	if not (Blocking and maxWS) then return end
+
+	
+	local ws
+	
+	if enabled and not Blocking.Value and not h:WaitForChild("Effects"):FindFirstChild("Stun") then
+		h.JumpPower = 0
+		ws = maxWS.Value
+		maxWS.Value = 7/16 * maxWS.Value
+	
+		Blocking.Value = true
+		
+		local disableAttack = Instance.new("ObjectValue")
+		disableAttack.Name = "DisableAttack"
+		disableAttack.Parent = effects
+		
+	elseif not enabled and Blocking.Value then
+		if not Blocking.Value then return end
+		h.JumpPower = 50
+		maxWS.Value = (16/7 * maxWS.Value)
+		if Blocking then 
+			Blocking.Value = false
+		end
+		if effects:FindFirstChild("DisableAttack") then effects:FindFirstChild("DisableAttack"):Destroy() end
+	end
+	
+	ws = nil
+	
+	
+end
+
+function stun(enemy,long)	
+	local hum = enemy:FindFirstChild("Humanoid"); local effects = hum:FindFirstChild("Effects") if not (hum and effects) then return end
+	
+	local event
+	
+	local anims = hum:GetPlayingAnimationTracks()
+	
+	if hum:FindFirstChild("Stun") or anims["Stun1"] then return end
+		
+	local stun = Instance.new("IntValue")
+	stun.Name = "Stun"
+	stun.Value = -15
+	stun.Parent =  effects
+
+	
+	local StunAnim = hum:LoadAnimation(script.Stun1)
+	StunAnim:Play(.1,1,long)
+	
+	event = StunAnim.Stopped:Connect(function()
+		stun:Destroy()
+		event:Disconnect()
+	end)		
+end
+
+function Block.breakBlock(hum)
+	Block.handleReceive(game.Players:GetPlayerFromCharacter(hum.Parent), false)
+	if hum.Parent.Blocking.Value then
+		Block.getHit(hum.Parent, true)
+	end
+	stun(hum.Parent, 0.7)
+end
+
+
+
+function Block:Launch()
+	blockingEvent.OnServerEvent:Connect(Block.handleReceive)
+end
+
+
+return Block
